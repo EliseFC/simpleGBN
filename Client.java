@@ -1,10 +1,10 @@
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.Scanner;
-import javax.swing.Timer;
+import java.util.Timer;
+import java.util.TimerTask;
+
 /**
  * Name:Elise Chen
  * Timer=3 , if time out, resend message
@@ -12,11 +12,14 @@ import javax.swing.Timer;
 public class Client {
     public static int windowSize;
     public static int start=0, end, num;
+    public static long timerTime = 0;
+
     public static void main(String[] args) throws Exception {
-        InetAddress serverAddress = InetAddress.getByName("localhost");
+        InetAddress serverAddress = InetAddress.getByName("158.69.208.150");
         DatagramSocket clientSocket = new DatagramSocket(9999);
         byte[] sendData;
-        Timer[] timers = new Timer[20];
+        Timer timer = new Timer();
+        timer.schedule(new DelayActionListener(clientSocket), 0L, 500L);
 
         Scanner scanner = new Scanner(System.in);
         System.out.println("The lost rate set as 0.3 ");
@@ -26,74 +29,82 @@ public class Client {
         System.out.println("Please enter slide window size: ");
         windowSize = scanner.nextInt();
         System.out.println("\n\n");
-        end = start + windowSize - 1;
+        end = start + windowSize;
+        Timer[] timers = new Timer[num];
+        long startTime = System.currentTimeMillis();
 
         for (int i=start;i<=end;i++){
             sendData = (i + "seq").getBytes();
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
             clientSocket.send(sendPacket);
-            timers[i] = new Timer(3000, new DelayActionListener(clientSocket, i, timers));
-            timers[i].start();
-            System.out.println("client send a packet. Number: " + i);
+           // System.out.println("client send a packet. Number: " + i);
         }
 
         while (true){
             byte[] recvData = new byte[100];
             DatagramPacket recvPacket = new DatagramPacket(recvData, recvData.length);
             clientSocket.receive(recvPacket);
-            int ack_seq = new String(recvPacket.getData()).charAt(3) -'0';
-            System.out.println("Client receive ack=" + ack_seq);
-            timers[ack_seq].stop();
-            if (ack_seq == start){
-                start++;
-                end++;
-                if (end > num - 1)
-                    end = num - 1;
-                sendData = (end + "seq").getBytes();
-                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
-                clientSocket.send(sendPacket);
-                timers[end] = new Timer(3000, new DelayActionListener(clientSocket, start, timers));
-                timers[end].start();
-                System.out.println("Client send packet. Number " + end);
+            String in = new String(recvPacket.getData()).trim();
+            int ack_seq = Integer.parseInt(in.substring(3, in.length()));
+           // System.out.println("Client receive ack=" + ack_seq);
+            if (ack_seq >= start && ack_seq <= end){
+                int oldEnd = end;
+                start = ack_seq;
+                end = ack_seq + windowSize;
+                if (end > num)
+                    end = num;
+
+                for (int i = oldEnd; i < end; i++) {
+                    if (i % 500 == 0) {
+                        System.out.println("Sending packet " + i + "/" + num);
+                    }
+
+                    sendData = (i + "seq").getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
+                    clientSocket.send(sendPacket);
+                   // System.out.println("Client send packet. Number " + end);
+                }
+
+                timerTime = System.currentTimeMillis();
             }
-            if (ack_seq == num - 1){
+            if (ack_seq == end)
+                timerTime = 0;
+            if (ack_seq == num){
+                timer.cancel();
                 System.out.println("Success send all packets");
+                System.out.println("Time to send " + num + " packets successfully was " + (System.currentTimeMillis() - startTime) + "ms");
                 return;
             }
         }
     }
 }
 
-class DelayActionListener implements ActionListener{
+class DelayActionListener extends TimerTask {
 
     DatagramSocket clientSocket;
-    int end_ack;
-    Timer[] timers;
-    public DelayActionListener(DatagramSocket clientSocket, int end_ack, Timer[] timers){
+    public DelayActionListener(DatagramSocket clientSocket){
         this.clientSocket = clientSocket;
-        this.end_ack = end_ack;
-        this.timers = timers;
     }
 
     @Override
-    public void actionPerformed(ActionEvent e) {
-        int end = Client.end;
-        System.out.println("\nClient will resend packet " + end_ack +" - " + end);
-        for (int i=end_ack;i<=end;i++){
-            byte[] sendData;
-            InetAddress serverAddress = null;
-            try {
-                serverAddress = InetAddress.getByName("localhost");
-                sendData = (i + "seq").getBytes();
-                DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
-                clientSocket.send(sendPacket);
-                System.out.println("Client send packet, num " + i);
-            } catch (Exception e1) {
-                e1.printStackTrace();
+    public void run() {
+        if (Client.timerTime != 0 && Client.timerTime < System.currentTimeMillis() - 1000) {
+            int end = Client.end;
+            int start = Client.start;
+            System.out.println("\nClient will resend packet " + start + " - " + end);
+            for (int i = start; i <= end; i++) {
+                byte[] sendData;
+                InetAddress serverAddress = null;
+                try {
+                    serverAddress = InetAddress.getByName("158.69.208.150");
+                    sendData = (i + "seq").getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
+                    clientSocket.send(sendPacket);
+                   // System.out.println("Client send packet, num " + i);
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                }
             }
-
-            timers[i].stop();
-            timers[i].start();
         }
     }
 }
