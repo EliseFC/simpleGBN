@@ -22,8 +22,8 @@ public class Client {
         timer.schedule(new DelayActionListener(clientSocket), 0L, 500L);
 
         Scanner scanner = new Scanner(System.in);
-        System.out.println("The lost rate set as 0.3 ");
-        System.out.println("Timer is 3s");
+       // System.out.println("The lost rate set as 0.3 ");
+        System.out.println("Timer is 1s");
         System.out.println("Please enter number of packets: ");
         num = scanner.nextInt();
         System.out.println("Please enter slide window size: ");
@@ -46,7 +46,7 @@ public class Client {
             clientSocket.receive(recvPacket);
             String in = new String(recvPacket.getData()).trim();
             int ack_seq = Integer.parseInt(in.substring(3, in.length()));
-           // System.out.println("Client receive ack=" + ack_seq);
+            System.out.println("Client received acknowledgement " + ack_seq);
             if (ack_seq >= start && ack_seq <= end){
                 int oldEnd = end;
                 start = ack_seq;
@@ -62,7 +62,7 @@ public class Client {
                     sendData = (i + "seq").getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
                     clientSocket.send(sendPacket);
-                   // System.out.println("Client send packet. Number " + end);
+                    System.out.println("Client sent packet " + i);
                 }
 
                 timerTime = System.currentTimeMillis();
@@ -71,7 +71,7 @@ public class Client {
                 timerTime = 0;
             if (ack_seq == num){
                 timer.cancel();
-                System.out.println("Success send all packets");
+                System.out.println("Success sent all packets");
                 System.out.println("Time to send " + num + " packets successfully was " + (System.currentTimeMillis() - startTime) + "ms");
                 return;
             }
@@ -91,7 +91,7 @@ class DelayActionListener extends TimerTask {
         if (Client.timerTime != 0 && Client.timerTime < System.currentTimeMillis() - 1000) {
             int end = Client.end;
             int start = Client.start;
-            System.out.println("\nClient will resend packet " + start + " - " + end);
+            System.out.println("\nClient will resend packets " + start + " - " + end);
             for (int i = start; i <= end; i++) {
                 byte[] sendData;
                 InetAddress serverAddress = null;
@@ -100,7 +100,7 @@ class DelayActionListener extends TimerTask {
                     sendData = (i + "seq").getBytes();
                     DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, serverAddress, 8888);
                     clientSocket.send(sendPacket);
-                   // System.out.println("Client send packet, num " + i);
+                    System.out.println("Client sent packet " + i);
                 } catch (Exception e1) {
                     e1.printStackTrace();
                 }
